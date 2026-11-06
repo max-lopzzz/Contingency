@@ -1,3 +1,5 @@
+require(script.MapBuilder).Build()
+
 local SurvivorService = require(script.SurvivorService)
 local BombService = require(script.BombService)
 local CombatService = require(script.CombatService)

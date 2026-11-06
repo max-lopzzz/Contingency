@@ -52,12 +52,13 @@
     },
     "Lighting": {
       "$properties": {
-        "Ambient": [
-          0,
-          0,
-          0
-        ],
-        "Brightness": 2,
+        "Ambient": [0.08, 0.08, 0.1],
+        "OutdoorAmbient": [0.22, 0.24, 0.32],
+        "Brightness": 1,
+        "ClockTime": 0.5,
+        "FogColor": [0.08, 0.09, 0.12],
+        "FogStart": 150,
+        "FogEnd": 600,
         "GlobalShadows": true,
         "Outlines": false,
         "Technology": "Voxel"
