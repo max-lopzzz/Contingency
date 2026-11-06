@@ -138,6 +138,23 @@ Config.Weapons = {
 Config.Kits.Damian.Weapon = { Name = "Katana", Rest = "Back" } -- drawn into the hand during Parry
 Config.Kits.Scarecrow.Weapon = { Name = "Sickle", Rest = "Hand" }
 
+-- Outfits (server/Outfits.luau): a kit with an Outfit spawns in it instead of the player's own avatar.
+-- Fields are HumanoidDescription properties; accessory fields take a list of Marketplace IDs.
+-- SkinColor is a hex code applied to every body part.
+Config.Kits.Damian.Outfit = {
+	HairAccessory = { 75950807831434, 18332618554 }, -- black emo anime hair, messy wavy hair
+	HatAccessory = { 83432370589857 }, -- gold rune hood
+	FaceAccessory = { 18928204157 }, -- Blood Son's mask
+	NeckAccessory = { 11810592188 }, -- Stargazer's Crest
+	ShouldersAccessory = { 110530850781464 }, -- right shoulder bandage wraps
+	-- The Steel Katana accessory (12508410858) is left out: Weapons.luau already puts his katana on his back.
+	BackAccessory = { 12785830450 }, -- black cape
+	WaistAccessory = { 17168048610 }, -- utility belt
+	Shirt = 567486574,
+	Pants = 567486933,
+	SkinColor = "8c604b",
+}
+
 Config.SurvivorKit = "Damian" -- OPEN (Q7): only kit so far, so every survivor plays Damian
 
 Config.Debug = {

@@ -17,6 +17,7 @@ local SurvivorService = require(script.Parent.SurvivorService)
 local BombService = require(script.Parent.BombService)
 local CombatService = require(script.Parent.CombatService)
 local Weapons = require(script.Parent.Weapons)
+local Outfits = require(script.Parent.Outfits)
 
 local RoundService = {}
 
@@ -37,8 +38,14 @@ local function minPlayers(): number
 	return if RunService:IsStudio() then Config.Debug.StudioMinPlayers else Config.Round.MinPlayers
 end
 
-local function spawnAt(player: Player, position: Vector3)
-	player:LoadCharacter()
+-- `kit` dresses the character in that kit's outfit, if it has one.
+local function spawnAt(player: Player, position: Vector3, kit: string?)
+	local outfit = Outfits.Describe(kit)
+	if outfit then
+		player:LoadCharacterWithHumanoidDescription(outfit)
+	else
+		player:LoadCharacter()
+	end
 	local character = player.Character
 	if character then
 		character:PivotTo(CFrame.new(position))
@@ -66,7 +73,7 @@ local function sendToLobby(player: Player)
 end
 
 local function spawnScarecrow(player: Player)
-	spawnAt(player, pointOr(workspace:FindFirstChild("Map"), "ScarecrowSpawn", PLACEHOLDER_SCARECROW))
+	spawnAt(player, pointOr(workspace:FindFirstChild("Map"), "ScarecrowSpawn", PLACEHOLDER_SCARECROW), "Scarecrow")
 	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
 	if humanoid then
 		humanoid.WalkSpeed = Config.Scarecrow.WalkSpeed
@@ -141,7 +148,7 @@ local function assignRoles()
 		spawnScarecrow(scarecrow)
 	end
 	for i, player in survivors do
-		spawnAt(player, survivorSpawn(i))
+		spawnAt(player, survivorSpawn(i), Config.SurvivorKit)
 		SurvivorService.Setup(player, Config.SurvivorKit)
 		Weapons.EquipKit(player.Character, Config.SurvivorKit)
 	end
