@@ -1,8 +1,10 @@
 local SurvivorService = require(script.SurvivorService)
 local BombService = require(script.BombService)
+local CombatService = require(script.CombatService)
 local RoundService = require(script.RoundService)
 
 SurvivorService.Init()
 BombService.Init()
+CombatService.Init()
 RoundService.Init()
 RoundService.Run()

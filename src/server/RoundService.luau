@@ -15,6 +15,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Net = require(ReplicatedStorage.Shared.Net)
 local SurvivorService = require(script.Parent.SurvivorService)
 local BombService = require(script.Parent.BombService)
+local CombatService = require(script.Parent.CombatService)
 
 local RoundService = {}
 
@@ -176,6 +177,7 @@ local function match()
 		task.wait(0.1)
 	end
 	BombService.Stop()
+	CombatService.Reset()
 end
 
 local function debrief()

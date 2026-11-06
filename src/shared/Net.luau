@@ -8,6 +8,8 @@
 	                      PlayersNeeded players still missing before intermission can count down
 	                      BombsTotal, BombsDisarmed
 	                    and an ObjectValue child "ActiveBomb" pointing at the bomb being worked on.
+	Net.Hallucinations  Folder of fake Scarecrows; each child has VictimId and Position attributes
+	                    and is only rendered by the victim's client.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -17,6 +19,7 @@ local REMOTE_NAMES = {
 	"MissionBriefing", -- server -> client: { Killer, KillerPlayer, Survivors = { { Name, Kit } } }
 	"MissionDebrief", -- server -> client: "Survivors" | "Scarecrow"
 	"RequestRevive", -- client -> server: target Player
+	"UseAbility", -- client -> server: abilityName, aim (Vector3 direction/position or target Player)
 	"DebugDamage", -- client -> server (Studio only)
 }
 
@@ -40,6 +43,11 @@ if RunService:IsServer() then
 	activeBomb.Parent = state
 	state.Parent = ReplicatedStorage
 	Net.State = state
+
+	local hallucinations = Instance.new("Folder")
+	hallucinations.Name = "Hallucinations"
+	hallucinations.Parent = ReplicatedStorage
+	Net.Hallucinations = hallucinations
 else
 	local remotes = ReplicatedStorage:WaitForChild("Remotes")
 	for _, name in REMOTE_NAMES do
@@ -47,6 +55,7 @@ else
 	end
 	Net.State = ReplicatedStorage:WaitForChild("GameState")
 	Net.State:WaitForChild("ActiveBomb")
+	Net.Hallucinations = ReplicatedStorage:WaitForChild("Hallucinations")
 end
 
 return Net

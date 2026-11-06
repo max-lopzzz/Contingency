@@ -43,18 +43,66 @@ Config.Scarecrow = {
 	WalkSpeed = 18, -- OPEN (Q8)
 }
 
--- Character kits. Only HP is used by the round loop; the rest is recorded for the abilities pass.
+-- Character kits. Abilities are listed in HUD order; Key is a KeyCode or a UserInputType (mouse).
 Config.Kits = {
 	Damian = {
 		MaxHP = 100,
-		Heal = { Amount = 25, Range = 6, Cooldown = 30 }, -- allies only, never someone who was already downed
-		Parry = { Window = 0.7, StunSeconds = 2, Cooldown = 25 }, -- only blocks Scarecrow's basic slash
+		Abilities = { "Parry", "Heal" },
+		Parry = {
+			Key = Enum.KeyCode.Q,
+			Window = 0.7, -- katana drawn; a Sickle Slash landing in this window is parried
+			StunSeconds = 2,
+			Cooldown = 25,
+		},
+		Heal = {
+			Key = Enum.KeyCode.F,
+			Amount = 25, -- instant; allies only, never someone who was already downed
+			Range = 6,
+			Cooldown = 30,
+		},
 	},
 	Scarecrow = {
-		SickleSlash = { Damage = 30, Cooldown = 1.5 },
-		FearGas = { Radius = 14, DurationSeconds = 4, TotalDamage = 30, Cooldown = nil }, -- OPEN (Q2): cooldown, thrown vs. around him
-		Hallucination = { ThrowRange = 40, Radius = 10, Cooldown = 25, FakeScarecrowDamageMultiplier = 0.6, DistortSeconds = nil }, -- OPEN (Q3): distortion duration
-		PanicRush = { LungeSeconds = 2, Slashes = 4, DamagePerSlash = 10, ComboSeconds = 2, Cooldown = 30, LungeDistance = nil }, -- OPEN (Q4): lunge distance
+		Abilities = { "SickleSlash", "FearGas", "Hallucination", "PanicRush" },
+		SickleSlash = {
+			Key = Enum.UserInputType.MouseButton1,
+			Damage = 30,
+			Cooldown = 1.5,
+			Windup = 0.25, -- delay before the hit lands, so a parry can be read
+			Range = 6,
+			ArcDegrees = 100, -- hits the single closest survivor inside this cone
+		},
+		FearGas = {
+			Key = Enum.KeyCode.Q,
+			Radius = 14, -- released around Scarecrow; OPEN (Q2): thrown instead?
+			DurationSeconds = 4,
+			TotalDamage = 30, -- dealt over the duration, only to survivors caught in the initial burst
+			Ticks = 4,
+			PutsAbilitiesOnCooldown = true, -- caught survivors' abilities go on full cooldown
+			Cooldown = 20, -- OPEN (Q2)
+		},
+		Hallucination = {
+			Key = Enum.KeyCode.E,
+			ThrowRange = 40,
+			FlightSeconds = 0.6,
+			Radius = 10,
+			Cooldown = 25,
+			DistortSeconds = 8, -- OPEN (Q3)
+			FakeScarecrows = 2, -- can hit for a reduced amount
+			FakeScarecrowDamageMultiplier = 0.6, -- of Sickle Slash damage
+			FakeScarecrowSpeed = 14,
+			FakeScarecrowHitCooldown = 1.5,
+			FakeTeammates = 2, -- visual only
+		},
+		PanicRush = {
+			Key = Enum.KeyCode.F,
+			LungeSeconds = 2, -- max lunge time; ends early on a catch
+			LungeSpeed = 32, -- OPEN (Q4): distance, currently up to 64 studs
+			CatchRange = 4,
+			Slashes = 4,
+			DamagePerSlash = 10,
+			ComboSeconds = 2,
+			Cooldown = 30,
+		},
 	},
 }
 

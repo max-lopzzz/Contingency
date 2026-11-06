@@ -7,6 +7,8 @@ local UserInputService = game:GetService("UserInputService")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Net = require(ReplicatedStorage.Shared.Net)
 local Batcomputer = require(script.Batcomputer)
+require(script.Abilities)
+require(script.Hallucination)
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
@@ -148,7 +150,7 @@ RunService.RenderStepped:Connect(function()
 
 	-- Own status
 	hpLabel.Text = if isSurvivor and condition ~= "Benched"
-		then `HP {player:GetAttribute("HP")}/{player:GetAttribute("MaxHP")}`
+		then `HP {math.ceil(player:GetAttribute("HP") or 0)}/{player:GetAttribute("MaxHP")}`
 		else ""
 	local status = ""
 	if isSurvivor and phase == "Match" then

@@ -30,6 +30,8 @@ local function now()
 	return workspace:GetServerTimeNow()
 end
 
+local rooted: { [Player]: true } = {}
+
 local function getHumanoid(player: Player): Humanoid?
 	local character = player.Character
 	return character and character:FindFirstChildOfClass("Humanoid")
@@ -69,8 +71,26 @@ local function setDownedTag(player: Player, visible: boolean)
 	tag.Parent = head
 end
 
+-- Walk speed follows from condition plus any root (e.g. caught in Panic Rush).
+function SurvivorService.RefreshMovement(player: Player)
+	local humanoid = getHumanoid(player)
+	if not humanoid then
+		return
+	end
+	local canMove = player:GetAttribute("Condition") == "Alive" and not rooted[player]
+	humanoid.WalkSpeed = if canMove then Config.Survivor.WalkSpeed else 0
+	humanoid.JumpPower = if canMove then StarterPlayer.CharacterJumpPower else 0
+	humanoid.JumpHeight = if canMove then StarterPlayer.CharacterJumpHeight else 0
+end
+
+function SurvivorService.SetRooted(player: Player, isRooted: boolean)
+	rooted[player] = if isRooted then true else nil
+	SurvivorService.RefreshMovement(player)
+end
+
 local function setCondition(player: Player, condition: string)
 	player:SetAttribute("Condition", condition)
+	SurvivorService.RefreshMovement(player)
 	SurvivorService.ConditionChanged:Fire(player, condition)
 end
 
@@ -100,10 +120,10 @@ function SurvivorService.Setup(player: Player, kitName: string)
 	player:SetAttribute("HasBeenDowned", false)
 	player:SetAttribute("InvincibleUntil", 0)
 	player:SetAttribute("Condition", "Alive")
+	SurvivorService.RefreshMovement(player)
 
 	local humanoid = getHumanoid(player)
 	if humanoid then
-		humanoid.WalkSpeed = Config.Survivor.WalkSpeed
 		humanoid.Died:Connect(function()
 			-- Falling out of the map etc. counts as being taken out for good.
 			if SurvivorService.IsSurvivor(player) and player:GetAttribute("Condition") ~= "Benched" then
@@ -134,12 +154,6 @@ end
 
 function SurvivorService.Down(player: Player)
 	player:SetAttribute("HasBeenDowned", true)
-	local humanoid = getHumanoid(player)
-	if humanoid then
-		humanoid.WalkSpeed = 0
-		humanoid.JumpPower = 0
-		humanoid.JumpHeight = 0
-	end
 	setDownedTag(player, true)
 	setCondition(player, "Downed")
 end
@@ -159,14 +173,20 @@ function SurvivorService.Revive(reviver: Player, target: Player): boolean
 
 	target:SetAttribute("HP", Config.Survivor.ReviveHP)
 	target:SetAttribute("InvincibleUntil", now() + Config.Survivor.ReviveInvincibleSeconds)
-	local humanoid = getHumanoid(target)
-	if humanoid then
-		humanoid.WalkSpeed = Config.Survivor.WalkSpeed
-		humanoid.JumpPower = StarterPlayer.CharacterJumpPower
-		humanoid.JumpHeight = StarterPlayer.CharacterJumpHeight
-	end
 	setDownedTag(target, false)
 	setCondition(target, "Alive")
+	return true
+end
+
+function SurvivorService.Heal(player: Player, amount: number): boolean
+	if not SurvivorService.CanBeHealed(player) then
+		return false
+	end
+	local hp, maxHP = player:GetAttribute("HP"), player:GetAttribute("MaxHP")
+	if hp >= maxHP then
+		return false
+	end
+	player:SetAttribute("HP", math.min(maxHP, hp + amount))
 	return true
 end
 
@@ -181,13 +201,19 @@ function SurvivorService.Bench(player: Player)
 	end
 end
 
+-- Wipes every round attribute (role, HP, cooldowns, status effects).
 function SurvivorService.Clear(player: Player)
-	for _, name in { "Role", "Kit", "HP", "MaxHP", "Condition", "HasBeenDowned", "InvincibleUntil" } do
+	rooted[player] = nil
+	for name in player:GetAttributes() do
 		player:SetAttribute(name, nil)
 	end
 end
 
 function SurvivorService.Init()
+	Players.PlayerRemoving:Connect(function(player)
+		rooted[player] = nil
+	end)
+
 	Net.Remotes.RequestRevive.OnServerEvent:Connect(function(player, target)
 		if typeof(target) == "Instance" and target:IsA("Player") and target.Parent == Players then
 			SurvivorService.Revive(player, target)
