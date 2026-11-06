@@ -16,6 +16,7 @@ local Net = require(ReplicatedStorage.Shared.Net)
 local SurvivorService = require(script.Parent.SurvivorService)
 local BombService = require(script.Parent.BombService)
 local CombatService = require(script.Parent.CombatService)
+local Weapons = require(script.Parent.Weapons)
 
 local RoundService = {}
 
@@ -70,6 +71,7 @@ local function spawnScarecrow(player: Player)
 	if humanoid then
 		humanoid.WalkSpeed = Config.Scarecrow.WalkSpeed
 	end
+	Weapons.EquipKit(player.Character, "Scarecrow")
 end
 
 local function setFrozen(frozen: boolean)
@@ -141,6 +143,7 @@ local function assignRoles()
 	for i, player in survivors do
 		spawnAt(player, survivorSpawn(i))
 		SurvivorService.Setup(player, Config.SurvivorKit)
+		Weapons.EquipKit(player.Character, Config.SurvivorKit)
 	end
 end
 

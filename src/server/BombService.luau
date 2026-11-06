@@ -10,6 +10,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local ServerStorage = game:GetService("ServerStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Net = require(ReplicatedStorage.Shared.Net)
@@ -67,9 +68,75 @@ local function getSpots(): { BasePart }
 	return spots
 end
 
+-- Puts the bomb model on a spot once. The spot part stays as the invisible anchor
+-- for the prompt and attributes; the model and its status light are the visuals.
+local function dressSpot(spot: BasePart)
+	if spot:FindFirstChild("BombModel") then
+		return
+	end
+	local assets = ServerStorage:FindFirstChild("Assets")
+	local template = assets and assets:FindFirstChild("FearGasBomb")
+	if not (template and template:IsA("Model")) then
+		return
+	end
+
+	local model = template:Clone()
+	model.Name = "BombModel"
+	local _, size = model:GetBoundingBox()
+	model:ScaleTo(model:GetScale() * Config.Bombs.ModelSize / math.max(size.X, size.Y, size.Z))
+	for _, d in model:GetDescendants() do
+		if d:IsA("BasePart") then
+			d.Anchored = true
+		end
+	end
+	local boxCFrame, boxSize = model:GetBoundingBox()
+	local floorY = spot.Position.Y - spot.Size.Y / 2
+	local offset = Vector3.new(spot.Position.X, floorY + boxSize.Y / 2, spot.Position.Z) - boxCFrame.Position
+	model:PivotTo(model:GetPivot() + offset)
+
+	local status = Instance.new("Part")
+	status.Name = "StatusLight"
+	status.Shape = Enum.PartType.Ball
+	status.Size = Vector3.new(0.6, 0.6, 0.6)
+	status.Material = Enum.Material.Neon
+	status.Anchored = true
+	status.CanCollide = false
+	status.CastShadow = false
+	status.Position = Vector3.new(spot.Position.X, floorY + boxSize.Y + 0.4, spot.Position.Z)
+	local light = Instance.new("PointLight")
+	light.Range = 10
+	light.Brightness = 2
+	light.Parent = status
+	status.Parent = model
+
+	model.Parent = spot
+	spot.Transparency = 1
+	spot.CanCollide = false
+end
+
+local function setLook(spot: BasePart, state: "Idle" | "Active" | "Disarmed")
+	local color = Config.Bombs.StatusColors[state]
+	local model = spot:FindFirstChild("BombModel")
+	local status = model and model:FindFirstChild("StatusLight")
+	if not status then
+		-- No model: tint the spot itself like before.
+		spot.Color = if state == "Idle" then Color3.fromRGB(60, 60, 60) else color
+		spot.Material = if state == "Idle" then Enum.Material.Metal else Enum.Material.Neon
+		return
+	end
+	status.Color = color
+	status.Transparency = 0
+	status:SetAttribute("Blink", state == "Active")
+	local light = status:FindFirstChildOfClass("PointLight")
+	if light then
+		light.Color = color
+		light.Enabled = state ~= "Idle"
+	end
+end
+
 local function resetSpot(spot: BasePart)
-	spot.Color = Color3.fromRGB(60, 60, 60)
-	spot.Material = Enum.Material.Metal
+	dressSpot(spot)
+	setLook(spot, "Idle")
 	spot:SetAttribute("Progress", 0)
 	spot:SetAttribute("WorkerId", 0)
 	for _, name in { "ActiveHighlight", "DisarmPrompt" } do
@@ -125,8 +192,7 @@ local function finishBomb(bomb: BasePart)
 	stopWorking()
 	resetSpot(bomb)
 	bomb:SetAttribute("Progress", 1)
-	bomb.Color = Color3.fromRGB(70, 200, 90)
-	bomb.Material = Enum.Material.Neon
+	setLook(bomb, "Disarmed")
 	Net.State:SetAttribute("BombsDisarmed", activeIndex)
 
 	if activeIndex >= #queue then
@@ -141,11 +207,11 @@ function activate(index: number)
 	activeIndex = index
 	local bomb = queue[index]
 	Net.State.ActiveBomb.Value = bomb
-	bomb.Color = Color3.fromRGB(255, 170, 0)
-	bomb.Material = Enum.Material.Neon
+	setLook(bomb, "Active")
 
 	local highlight = Instance.new("Highlight")
 	highlight.Name = "ActiveHighlight"
+	highlight.Adornee = bomb:FindFirstChild("BombModel") or bomb -- the spot part is invisible when dressed
 	highlight.FillColor = Color3.fromRGB(255, 170, 0)
 	highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
 	highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
@@ -162,8 +228,25 @@ function activate(index: number)
 	prompt.Parent = bomb
 end
 
+local function blink(bomb: BasePart)
+	local model = bomb:FindFirstChild("BombModel")
+	local status = model and model:FindFirstChild("StatusLight")
+	if not (status and status:GetAttribute("Blink")) then
+		return
+	end
+	local on = math.floor(os.clock() / Config.Bombs.BlinkSeconds) % 2 == 0
+	status.Transparency = if on then 0 else 0.7
+	local light = status:FindFirstChildOfClass("PointLight")
+	if light then
+		light.Enabled = on
+	end
+end
+
 local function step(dt: number)
 	local bomb = queue[activeIndex]
+	if bomb then
+		blink(bomb)
+	end
 	if not (bomb and worker) then
 		return
 	end

@@ -29,6 +29,15 @@ Config.Bombs = {
 	MoveCancelDistance = 1.5, -- moving this far from where the disarm started cancels it (progress is kept)
 	RandomOrder = true, -- OPEN (Q6): shuffle which fixed spots are used and their reveal order
 	AllowDisarmWhileInvincible = true, -- OPEN (Q9): can a just-revived survivor disarm?
+	-- Visual model cloned onto every spot: ServerStorage.Assets.FearGasBomb (Creator Store C4, 15590597168).
+	-- Missing model falls back to the plain spot part.
+	ModelSize = 4, -- studs; the model's longest side is scaled to this
+	StatusColors = {
+		Idle = Color3.fromRGB(90, 20, 20), -- not revealed yet: dim red, no light
+		Active = Color3.fromRGB(255, 170, 0), -- the one to disarm: lit and blinking
+		Disarmed = Color3.fromRGB(70, 200, 90),
+	},
+	BlinkSeconds = 0.5,
 }
 
 Config.Survivor = {
@@ -105,6 +114,29 @@ Config.Kits = {
 		},
 	},
 }
+
+-- Held weapon models (server/Weapons.luau), templates in ServerStorage.Assets.Weapons.
+-- Grip / BackGrip are the handle's offset from RightGripAttachment / BodyBackAttachment,
+-- in the same convention as Tool.Grip.
+local KATANA_GRIP = CFrame.fromMatrix(Vector3.new(0, 0, -1.7), Vector3.yAxis, Vector3.zAxis, Vector3.xAxis)
+Config.Weapons = {
+	Katana = { -- Creator Store 4591697150; blade along the handle's +Z, hilt at -Z
+		Handle = "Handle",
+		Scale = 0.6, -- the model is ~5 studs; sized down for standard avatars
+		Grip = KATANA_GRIP, -- the Tool's own grip
+		-- Sheathed: hilt over the right shoulder, blade down the back.
+		BackGrip = (CFrame.new(0, 0, 0.35) * CFrame.Angles(0, 0, math.rad(35)) * CFrame.Angles(math.rad(90), 0, 0)):Inverse(),
+	},
+	Sickle = { -- Creator Store 17404338816; shaft along +Y with the blade at the top
+		Handle = "Meshes/Sickle_Cube",
+		Scale = 0.75,
+		-- Held low on the shaft, standing up and tipped 15 degrees forward, blade curving forward.
+		-- (Measured in Studio against an R15 RightGripAttachment.)
+		Grip = CFrame.new(0, -1.4, 0) * CFrame.fromEulerAnglesXYZ(math.rad(-119.1), math.rad(-36), math.rad(-74.3)),
+	},
+}
+Config.Kits.Damian.Weapon = { Name = "Katana", Rest = "Back" } -- drawn into the hand during Parry
+Config.Kits.Scarecrow.Weapon = { Name = "Sickle", Rest = "Hand" }
 
 Config.SurvivorKit = "Damian" -- OPEN (Q7): only kit so far, so every survivor plays Damian
 

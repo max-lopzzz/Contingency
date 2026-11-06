@@ -10,7 +10,15 @@
 	  Workspace.Map.SurvivorSpawns    5 parts
 	  Workspace.Map.ScarecrowSpawn    part
 	  Workspace.Lobby, Workspace.LobbySpawn
+
+	Props come from ServerStorage.Assets (models saved in the place file, imported from
+	the Creator Store with their scripts removed). Each one falls back to a plain block
+	when its model is missing, so a fresh `rojo build` still produces a playable map:
+	  Assets.Props.<Dumpster|TrashBags|FireEscape|SteamVent|Manhole|PoliceBarricade|RoadBlock|PoliceTape|WreckedCar>
+	  Assets.Graffiti                  Decals, one picked per alley wall
 ]]
+
+local ServerStorage = game:GetService("ServerStorage")
 
 local MapBuilder = {}
 
@@ -75,6 +83,71 @@ local function folder(parent: Instance, name: string): Folder
 	return f
 end
 
+-- Imported models ---------------------------------------------------------
+
+local function assetFolder(name: string): Instance?
+	local assets = ServerStorage:FindFirstChild("Assets")
+	return assets and assets:FindFirstChild(name)
+end
+
+-- Yaw that turns a model's -Z side (its back) to face `direction`.
+local function backToward(direction: Vector3): number
+	return math.atan2(-direction.X, -direction.Z)
+end
+
+-- Clones Assets.Props[name], turns it by `yaw`, scales it and sits its bounding box on
+-- `position`. Returns nil when the model isn't in the place so callers can fall back.
+local function prop(parent: Instance, name: string, position: Vector3, yaw: number, scale: number?): Model?
+	local props = assetFolder("Props")
+	local template = props and props:FindFirstChild(name)
+	if not (template and template:IsA("Model")) then
+		return nil
+	end
+	local model = template:Clone()
+	if scale and scale ~= 1 then
+		model:ScaleTo(model:GetScale() * scale)
+	end
+	for _, d in model:GetDescendants() do
+		if d:IsA("BasePart") then
+			d.Anchored = true
+		end
+	end
+	local pivot = model:GetPivot()
+	model:PivotTo(CFrame.new(pivot.Position) * CFrame.Angles(0, yaw, 0) * pivot.Rotation)
+	local box, size = model:GetBoundingBox()
+	model:PivotTo(model:GetPivot() + (position + Vector3.new(0, size.Y / 2, 0) - box.Position))
+	model.Parent = parent
+	return model
+end
+
+-- A graffiti decal on a wall. `normal` is the axis-aligned direction the wall faces.
+local function graffiti(parent: Instance, position: Vector3, normal: Vector3, along: Vector3)
+	local decals = assetFolder("Graffiti")
+	local choices = decals and decals:GetChildren() or {}
+	if #choices == 0 then
+		return
+	end
+	local width, height = 9, 6
+	local size = Vector3.new(0.05, height, 0.05) + along * width
+	local face = if normal.X > 0 then Enum.NormalId.Right
+		elseif normal.X < 0 then Enum.NormalId.Left
+		elseif normal.Z > 0 then Enum.NormalId.Back
+		else Enum.NormalId.Front
+	local canvas = part(parent, {
+		Name = "Graffiti",
+		Size = size,
+		Position = position + normal * 0.05,
+		Transparency = 1,
+		CanCollide = false,
+		CanQuery = false,
+		CanTouch = false,
+		CastShadow = false,
+	})
+	local decal = choices[rng:NextInteger(1, #choices)]:Clone()
+	decal.Face = face
+	decal.Parent = canvas
+end
+
 -- Props ---------------------------------------------------------------------
 
 local function streetLamp(parent: Instance, x: number, z: number)
@@ -92,6 +165,9 @@ local function streetLamp(parent: Instance, x: number, z: number)
 end
 
 local function dumpster(parent: Instance, x: number, z: number, alongX: boolean)
+	if prop(parent, "Dumpster", Vector3.new(x, PAD_TOP, z), if alongX then 0 else math.rad(90)) then
+		return
+	end
 	local sx, sz = if alongX then 6 else 3.5, if alongX then 3.5 else 6
 	box(parent, "Dumpster", x, z, sx, sz, 4, PAD_TOP, { Color = Color3.fromRGB(30, 70, 40), Material = Enum.Material.Metal })
 end
@@ -110,17 +186,58 @@ end
 local function barricade(parent: Instance, x: number, z: number, alongX: boolean)
 	local model = Instance.new("Model")
 	model.Name = "Barricade"
+	-- Road blocks and crowd barriers run lengthwise along Z in their own space.
+	local acrossYaw = if alongX then 0 else math.rad(90)
+	local inward = if alongX then Vector3.new(if x > 0 then -1 else 1, 0, 0) else Vector3.new(0, 0, if z > 0 then -1 else 1)
 	for offset = -9, 9, 9 do
 		local bx, bz = if alongX then x else x + offset, if alongX then z + offset else z
-		local sx, sz = if alongX then 2 else 7, if alongX then 7 else 2
-		box(model, "JerseyBarrier", bx, bz, sx, sz, 3, GROUND, { Color = Color3.fromRGB(150, 150, 145), Material = Enum.Material.Concrete })
+		if not prop(model, "RoadBlock", Vector3.new(bx, GROUND, bz), acrossYaw) then
+			local sx, sz = if alongX then 2 else 7, if alongX then 7 else 2
+			box(model, "JerseyBarrier", bx, bz, sx, sz, 3, GROUND, { Color = Color3.fromRGB(150, 150, 145), Material = Enum.Material.Concrete })
+		end
+	end
+	-- Crowd barriers and tape in front of the squad car, which sits on the inner side.
+	local acrossDir = if alongX then Vector3.zAxis else Vector3.xAxis
+	local front = Vector3.new(x, GROUND, z) + inward * 10
+	for _, offset in { -6, 6 } do
+		prop(model, "PoliceBarricade", front + acrossDir * offset, acrossYaw)
+	end
+	local tape = prop(model, "PoliceTape", front, 0)
+	local strip = tape and tape:FindFirstChildWhichIsA("BasePart", true)
+	if strip then
+		-- Stretch the single tape strip between the two barriers at waist height:
+		-- its longest axis runs across the street, its thinnest faces the players.
+		local size = strip.Size
+		local axes = { { "X", size.X }, { "Y", size.Y }, { "Z", size.Z } }
+		table.sort(axes, function(a, b)
+			return a[2] > b[2]
+		end)
+		local dirs = { [axes[1][1]] = acrossDir, [axes[2][1]] = Vector3.yAxis, [axes[3][1]] = inward }
+		local newSize = { [axes[1][1]] = 12, [axes[2][1]] = axes[2][2], [axes[3][1]] = axes[3][2] }
+		-- Keep the frame right-handed so the texture isn't mirrored.
+		if dirs.X:Cross(dirs.Y):Dot(dirs.Z) < 0 then
+			dirs[axes[3][1]] = -inward
+		end
+		strip.Size = Vector3.new(newSize.X, newSize.Y, newSize.Z)
+		strip.CFrame = CFrame.fromMatrix(front + Vector3.new(0, 3, 0), dirs.X, dirs.Y, dirs.Z)
+		strip.CanCollide = false
 	end
 	-- Squad car parked behind the barriers.
 	local back = if alongX then (if x > 0 then -6 else 6) else (if z > 0 then -6 else 6)
 	local cx, cz = if alongX then x + back else x, if alongX then z else z + back
 	local sx, sz = if alongX then 5 else 11, if alongX then 11 else 5
 	box(model, "SquadCar", cx, cz, sx, sz, 3.5, GROUND, { Color = Color3.fromRGB(20, 30, 60), Material = Enum.Material.SmoothPlastic })
-	box(model, "LightbarRed", cx, cz, if alongX then 1 else 1.5, if alongX then 1.5 else 1, 0.6, GROUND + 3.5, { Color = Color3.fromRGB(255, 40, 40), Material = Enum.Material.Neon })
+	-- Red and blue lightbar halves that also light up the barricade.
+	local half = if alongX then Vector3.new(0, 0, 0.75) else Vector3.new(0.75, 0, 0)
+	for _, side in { { "LightbarRed", Color3.fromRGB(255, 40, 40), -1 }, { "LightbarBlue", Color3.fromRGB(50, 90, 255), 1 } } do
+		local p = Vector3.new(cx, 0, cz) + half * side[3]
+		local bar = box(model, side[1], p.X, p.Z, if alongX then 1 else 0.75, if alongX then 0.75 else 1, 0.6, GROUND + 3.5, { Color = side[2], Material = Enum.Material.Neon })
+		local glow = Instance.new("PointLight")
+		glow.Color = side[2]
+		glow.Range = 18
+		glow.Brightness = 1.5
+		glow.Parent = bar
+	end
 	model.Parent = parent
 end
 
@@ -177,6 +294,28 @@ local function alleyBlock(geometry: Instance, x0: number, x1: number, z0: number
 	dumpster(geometry, d.X, d.Z, alongX)
 	local c = centre - along * 24 - across * (half - 2.5)
 	crates(geometry, c.X, c.Z, alongX)
+	local t = centre - along * 14 - across * (half - 2.5)
+	prop(geometry, "TrashBags", Vector3.new(t.X, PAD_TOP, t.Z), rng:NextNumber() * math.pi * 2)
+
+	-- Fire escape on the far wall, back against the building.
+	local f = centre - along * 10 + across * (half - 1.75)
+	prop(geometry, "FireEscape", Vector3.new(f.X, PAD_TOP, f.Z), backToward(across), 0.7)
+
+	-- Graffiti on both walls, away from the lamp and the fire escape.
+	local wallY = PAD_TOP + 4
+	graffiti(geometry, centre - across * half + along * 8 + Vector3.new(0, wallY, 0), across, along)
+	graffiti(geometry, centre + across * half + along * 12 + Vector3.new(0, wallY, 0), -across, along)
+
+	-- Extra lights toward both alley mouths so the ends aren't pitch black.
+	for _, sign in { -1, 1 } do
+		local p = centre + along * (34 * sign) - across * (half - 0.5)
+		local fixture = box(geometry, "AlleyLight", p.X, p.Z, 1, 1, 0.5, PAD_TOP + 9, { Color = Color3.fromRGB(200, 210, 255), Material = Enum.Material.Neon })
+		local fill = Instance.new("PointLight")
+		fill.Color = Color3.fromRGB(170, 185, 255)
+		fill.Range = 20
+		fill.Brightness = 1.2
+		fill.Parent = fixture
+	end
 
 	-- Dim light over the bomb spot.
 	local lampPos = centre + across * (half - 0.5)
@@ -309,6 +448,19 @@ local function buildMap()
 				streetLamp(geometry, sx + corner.X * offset, sz + corner.Z * offset)
 			end
 		end
+	end
+
+	-- Street clutter: manholes and steam vents on the asphalt, wrecked cars as cover.
+	for _, s in STREETS do
+		for _, t in { -110, 0, 110 } do
+			local onZ = Vector3.new(s + 4, GROUND, t)
+			local onX = Vector3.new(t, GROUND, s - 4)
+			prop(geometry, if t == 0 then "SteamVent" else "Manhole", onZ, 0)
+			prop(geometry, if t == 0 then "Manhole" else "SteamVent", onX, 0)
+		end
+	end
+	for _, spot in { Vector3.new(55, GROUND, -105), Vector3.new(-55, GROUND, 105), Vector3.new(105, GROUND, 55), Vector3.new(-105, GROUND, -55) } do
+		prop(geometry, "WreckedCar", spot, rng:NextNumber() * math.pi * 2, 0.8)
 	end
 
 	-- Streets are closed off where they leave the map.

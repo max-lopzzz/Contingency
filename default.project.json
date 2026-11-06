@@ -52,8 +52,8 @@
     },
     "Lighting": {
       "$properties": {
-        "Ambient": [0.08, 0.08, 0.1],
-        "OutdoorAmbient": [0.22, 0.24, 0.32],
+        "Ambient": [0.12, 0.12, 0.15],
+        "OutdoorAmbient": [0.3, 0.32, 0.42],
         "Brightness": 1,
         "ClockTime": 0.5,
         "FogColor": [0.08, 0.09, 0.12],

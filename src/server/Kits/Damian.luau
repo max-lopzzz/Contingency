@@ -11,6 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local SurvivorService = require(script.Parent.Parent.SurvivorService)
 local Fx = require(script.Parent.Parent.Fx)
+local Weapons = require(script.Parent.Parent.Weapons)
 
 local Kit = Config.Kits.Damian
 
@@ -19,6 +20,7 @@ local Damian = { Use = {} }
 function Damian.Use.Parry(player: Player): boolean
 	player:SetAttribute("ParryUntil", workspace:GetServerTimeNow() + Kit.Parry.Window)
 	Fx.Flash(player.Character, Color3.new(1, 1, 1), Kit.Parry.Window)
+	Weapons.Draw(player.Character, Kit.Parry.Window)
 	return true
 end
 
