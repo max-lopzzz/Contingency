@@ -3,9 +3,10 @@
 
 	Net.Remotes.<Name>  RemoteEvents
 	Net.State           Folder whose attributes mirror the round state:
-	                      Phase         "Intermission" | "Briefing" | "Match" | "Debrief"
+	                      Phase         "Intermission" | "Select" | "Briefing" | "Match" | "Debrief"
 	                      PhaseEndsAt   workspace:GetServerTimeNow() when the phase ends (0 = waiting)
 	                      PlayersNeeded players still missing before intermission can count down
+	                      Killer        kit of the killer this round, decided by the vote
 	                      BombsTotal, BombsDisarmed
 	                    and an ObjectValue child "ActiveBomb" pointing at the bomb being worked on.
 	Net.Hallucinations  Folder of fake Scarecrows; each child has VictimId and Position attributes
@@ -21,6 +22,8 @@ local REMOTE_NAMES = {
 	"RequestRevive", -- client -> server: target Player
 	"UseAbility", -- client -> server: abilityName, aim (Vector3 direction/position or target Player)
 	"DebugDamage", -- client -> server (Studio only)
+	"VoteKiller", -- client -> server: killer kit name (Intermission only)
+	"PickSurvivor", -- client -> server: survivor kit name (Select phase, survivors only)
 }
 
 local Net = { Remotes = {} }

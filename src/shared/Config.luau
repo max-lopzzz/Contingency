@@ -11,6 +11,7 @@ Config.Round = {
 	MinPlayers = 3, -- 1 Scarecrow + 2 survivors
 	MaxSurvivors = 5,
 	IntermissionSeconds = 15,
+	SelectSeconds = 12, -- survivors pick their character (ends early once everyone has picked)
 	BriefingSeconds = 7, -- Batcomputer mission report before the match
 	DebriefSeconds = 7, -- "Mission Completed / Mission Lost" screen
 	MatchSeconds = 8 * 60,
@@ -155,7 +156,28 @@ Config.Kits.Damian.Outfit = {
 	SkinColor = "8c604b",
 }
 
-Config.SurvivorKit = "Damian" -- OPEN (Q7): only kit so far, so every survivor plays Damian
+-- Everyone on the selection screens, in display order. An entry is playable once Config.Kits has
+-- its Kit; until then it shows as "Coming soon". A killer's Map is where its match is played.
+Config.Roster = {
+	Killers = {
+		{ Kit = "Scarecrow", Name = "Scarecrow", Map = "Gotham City", Color = Color3.fromRGB(150, 190, 60) },
+		{ Kit = "Bane", Name = "Bane", Map = "Arkham Asylum", Color = Color3.fromRGB(170, 120, 60) },
+		{ Kit = "Joker", Name = "Joker", Map = "Hospital / Wayne Manor", Color = Color3.fromRGB(140, 70, 200) },
+	},
+	Survivors = {
+		{ Kit = "Damian", Name = "Damian Wayne", Alias = "Robin", Color = Color3.fromRGB(210, 40, 40) },
+		{ Kit = "Batman", Name = "Bruce Wayne", Alias = "Batman", Color = Color3.fromRGB(90, 90, 110) },
+		{ Kit = "Oracle", Name = "Barbara Gordon", Alias = "Oracle", Color = Color3.fromRGB(80, 160, 230) },
+		{ Kit = "Spoiler", Name = "Stephanie Brown", Alias = "Spoiler", Color = Color3.fromRGB(130, 60, 190) },
+		{ Kit = "Batgirl", Name = "Cassandra Cain", Alias = "Batgirl", Color = Color3.fromRGB(60, 60, 70) },
+		{ Kit = "Signal", Name = "Duke Thomas", Alias = "The Signal", Color = Color3.fromRGB(240, 200, 40) },
+		{ Kit = "Azrael", Name = "Jean-Paul Valley", Alias = "Azrael", Color = Color3.fromRGB(220, 90, 30) },
+	},
+}
+
+function Config.IsPlayable(kit: string): boolean
+	return Config.Kits[kit] ~= nil
+end
 
 Config.Debug = {
 	StudioMinPlayers = 1, -- in Studio a solo tester becomes a survivor with no Scarecrow

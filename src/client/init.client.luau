@@ -9,6 +9,7 @@ local Net = require(ReplicatedStorage.Shared.Net)
 local Batcomputer = require(script.Batcomputer)
 require(script.Abilities)
 require(script.Hallucination)
+require(script.Lobby)
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
@@ -149,7 +150,8 @@ RunService.RenderStepped:Connect(function()
 	end
 
 	-- Own status
-	hpLabel.Text = if isSurvivor and condition ~= "Benched"
+	-- (MaxHP is only set once the survivor has spawned with a character.)
+	hpLabel.Text = if isSurvivor and condition ~= "Benched" and player:GetAttribute("MaxHP")
 		then `HP {math.ceil(player:GetAttribute("HP") or 0)}/{player:GetAttribute("MaxHP")}`
 		else ""
 	local status = ""

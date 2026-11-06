@@ -1,5 +1,5 @@
 --[[
-	The match loop: Intermission -> Briefing -> Match -> Debrief -> repeat.
+	The match loop: Intermission (killer vote) -> Select (survivor characters) -> Briefing -> Match -> Debrief -> repeat.
 
 	Map points (all optional, placeholders are used when missing):
 	  Workspace.LobbySpawn               BasePart
@@ -18,6 +18,7 @@ local BombService = require(script.Parent.BombService)
 local CombatService = require(script.Parent.CombatService)
 local Weapons = require(script.Parent.Weapons)
 local Outfits = require(script.Parent.Outfits)
+local SelectionService = require(script.Parent.SelectionService)
 
 local RoundService = {}
 
@@ -73,12 +74,15 @@ local function sendToLobby(player: Player)
 end
 
 local function spawnScarecrow(player: Player)
-	spawnAt(player, pointOr(workspace:FindFirstChild("Map"), "ScarecrowSpawn", PLACEHOLDER_SCARECROW), "Scarecrow")
+	local map = workspace:FindFirstChild("Map")
+	local killerSpawn = if map and map:FindFirstChild("KillerSpawn") then "KillerSpawn" else "ScarecrowSpawn"
+	local kit = Net.State:GetAttribute("Killer") or "Scarecrow"
+	spawnAt(player, pointOr(map, killerSpawn, PLACEHOLDER_SCARECROW), kit)
 	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
 	if humanoid then
 		humanoid.WalkSpeed = Config.Scarecrow.WalkSpeed
 	end
-	Weapons.EquipKit(player.Character, "Scarecrow")
+	Weapons.EquipKit(player.Character, kit)
 end
 
 local function setFrozen(frozen: boolean)
@@ -135,7 +139,9 @@ local function assignRoles()
 		pool[i], pool[j] = pool[j], pool[i]
 	end
 
-	-- OPEN (Q7): Scarecrow is picked at random. A solo Studio tester plays survivor.
+	-- The killer character comes from the lobby vote; the player who plays it is random.
+	-- A solo Studio tester plays survivor.
+	Net.State:SetAttribute("Killer", SelectionService.ChooseKiller())
 	scarecrow = if #pool >= 2 then table.remove(pool, 1) else nil
 	survivors = {}
 	for i = 1, math.min(#pool, Config.Round.MaxSurvivors) do
@@ -144,23 +150,51 @@ local function assignRoles()
 
 	if scarecrow then
 		scarecrow:SetAttribute("Role", "Scarecrow")
-		scarecrow:SetAttribute("Kit", "Scarecrow")
+		scarecrow:SetAttribute("Kit", Net.State:GetAttribute("Killer"))
+	end
+	for _, player in survivors do
+		player:SetAttribute("Role", "Survivor") -- lets them pick on the Select screen
+	end
+end
+
+-- Survivors pick their characters while still in the lobby; then everyone is spawned.
+local function select()
+	setPhase("Select", Config.Round.SelectSeconds)
+	local endsAt = Net.State:GetAttribute("PhaseEndsAt")
+	while workspace:GetServerTimeNow() < endsAt and not SelectionService.AllPicked(survivors) do
+		task.wait(0.25)
+	end
+	SelectionService.FillPicks(survivors)
+
+	if scarecrow and scarecrow.Parent == Players then
 		spawnScarecrow(scarecrow)
 	end
 	for i, player in survivors do
-		spawnAt(player, survivorSpawn(i), Config.SurvivorKit)
-		SurvivorService.Setup(player, Config.SurvivorKit)
-		Weapons.EquipKit(player.Character, Config.SurvivorKit)
+		if player.Parent == Players then
+			local kit = player:GetAttribute("Pick")
+			spawnAt(player, survivorSpawn(i), kit)
+			SurvivorService.Setup(player, kit)
+			Weapons.EquipKit(player.Character, kit)
+		end
 	end
+end
+
+local function rosterName(list, kit: string?): string
+	for _, entry in list do
+		if entry.Kit == kit then
+			return entry.Alias or entry.Name
+		end
+	end
+	return kit or "-"
 end
 
 local function briefing()
 	local roster = {}
 	for _, player in survivors do
-		table.insert(roster, { Name = player.DisplayName, Kit = player:GetAttribute("Kit") })
+		table.insert(roster, { Name = player.DisplayName, Kit = rosterName(Config.Roster.Survivors, player:GetAttribute("Kit")) })
 	end
 	Net.Remotes.MissionBriefing:FireAllClients({
-		Killer = "Scarecrow",
+		Killer = rosterName(Config.Roster.Killers, Net.State:GetAttribute("Killer")),
 		KillerPlayer = scarecrow and scarecrow.DisplayName or "-",
 		Survivors = roster,
 	})
@@ -200,6 +234,7 @@ end
 
 function RoundService.Init()
 	Players.CharacterAutoLoads = false
+	SelectionService.Init()
 
 	BombService.AllDisarmed:Connect(function()
 		result = result or "Survivors"
@@ -238,6 +273,7 @@ function RoundService.Run()
 	while true do
 		intermission()
 		assignRoles()
+		select()
 		briefing()
 		match()
 		debrief()
