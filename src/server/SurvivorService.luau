@@ -8,6 +8,8 @@
 	  Condition       "Alive" | "Downed" | "Benched"
 	  HasBeenDowned   true after the first down; the next 0 HP benches them
 	  InvincibleUntil workspace:GetServerTimeNow() timestamp
+	  Stamina         0..Config.Sprint.MaxStamina
+	  Sprinting       true while running (the client asks with Remotes.Sprint; the server decides)
 
 	Survivors never use Humanoid.Health; Scarecrow damage goes through Damage().
 ]]
@@ -31,6 +33,10 @@ local function now()
 end
 
 local rooted: { [Player]: true } = {}
+
+-- Sprint state per survivor; Stamina/Sprinting attributes mirror it for the HUD.
+type Run = { Held: boolean, Stamina: number, LastRun: number, Exhausted: boolean }
+local runs: { [Player]: Run } = {}
 
 local function getHumanoid(player: Player): Humanoid?
 	local character = player.Character
@@ -71,16 +77,54 @@ local function setDownedTag(player: Player, visible: boolean)
 	tag.Parent = head
 end
 
--- Walk speed follows from condition plus any root (e.g. caught in Panic Rush).
+-- Walk speed follows from condition, sprinting and any root (e.g. caught in Panic Rush).
 function SurvivorService.RefreshMovement(player: Player)
 	local humanoid = getHumanoid(player)
 	if not humanoid then
 		return
 	end
 	local canMove = player:GetAttribute("Condition") == "Alive" and not rooted[player]
-	humanoid.WalkSpeed = if canMove then Config.Survivor.WalkSpeed else 0
+	local speed = if player:GetAttribute("Sprinting") then Config.Sprint.Speed else Config.Survivor.WalkSpeed
+	humanoid.WalkSpeed = if canMove then speed else 0
 	humanoid.JumpPower = if canMove then StarterPlayer.CharacterJumpPower else 0
 	humanoid.JumpHeight = if canMove then StarterPlayer.CharacterJumpHeight else 0
+end
+
+-- Drains stamina while running, refills it after a pause. Running out locks sprint until the
+-- bar is back to MinToStart, so it can't be feathered at zero.
+local function updateSprint(dt: number)
+	local sprint = Config.Sprint
+	local clock = os.clock()
+	for player, run in runs do
+		local running = run.Held
+			and not run.Exhausted
+			and run.Stamina > 0
+			and player:GetAttribute("Condition") == "Alive"
+			and not rooted[player]
+		if running then
+			run.Stamina = math.max(0, run.Stamina - sprint.DrainPerSecond * dt)
+			run.LastRun = clock
+			if run.Stamina <= 0 then
+				run.Exhausted = true
+			end
+		elseif clock - run.LastRun >= sprint.RegenDelay then
+			run.Stamina = math.min(sprint.MaxStamina, run.Stamina + sprint.RegenPerSecond * dt)
+		end
+		if run.Exhausted and run.Stamina >= sprint.MinToStart then
+			run.Exhausted = false
+		end
+
+		-- Only publish visible changes so the attribute isn't replicated every frame.
+		local shown = math.floor(run.Stamina + 0.5)
+		if player:GetAttribute("Stamina") ~= shown then
+			player:SetAttribute("Stamina", shown)
+		end
+		local sprinting = running and run.Stamina > 0
+		if player:GetAttribute("Sprinting") ~= sprinting then
+			player:SetAttribute("Sprinting", sprinting)
+			SurvivorService.RefreshMovement(player)
+		end
+	end
 end
 
 function SurvivorService.SetRooted(player: Player, isRooted: boolean)
@@ -120,6 +164,9 @@ function SurvivorService.Setup(player: Player, kitName: string)
 	player:SetAttribute("HasBeenDowned", false)
 	player:SetAttribute("InvincibleUntil", 0)
 	player:SetAttribute("Condition", "Alive")
+	runs[player] = { Held = false, Stamina = Config.Sprint.MaxStamina, LastRun = 0, Exhausted = false }
+	player:SetAttribute("Stamina", Config.Sprint.MaxStamina)
+	player:SetAttribute("Sprinting", false)
 	SurvivorService.RefreshMovement(player)
 
 	local humanoid = getHumanoid(player)
@@ -204,6 +251,7 @@ end
 -- Wipes every round attribute (role, HP, cooldowns, status effects).
 function SurvivorService.Clear(player: Player)
 	rooted[player] = nil
+	runs[player] = nil
 	for name in player:GetAttributes() do
 		player:SetAttribute(name, nil)
 	end
@@ -212,7 +260,16 @@ end
 function SurvivorService.Init()
 	Players.PlayerRemoving:Connect(function(player)
 		rooted[player] = nil
+		runs[player] = nil
 	end)
+
+	Net.Remotes.Sprint.OnServerEvent:Connect(function(player, held)
+		local run = runs[player]
+		if run then
+			run.Held = held == true
+		end
+	end)
+	RunService.Heartbeat:Connect(updateSprint)
 
 	Net.Remotes.RequestRevive.OnServerEvent:Connect(function(player, target)
 		if typeof(target) == "Instance" and target:IsA("Player") and target.Parent == Players then

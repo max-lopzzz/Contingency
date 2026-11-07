@@ -54,6 +54,24 @@ barFill.BackgroundColor3 = Color3.fromRGB(255, 170, 0)
 barFill.BorderSizePixel = 0
 barFill.Parent = barBack
 
+-- Stamina bar under the HP readout.
+local staminaBack = Instance.new("Frame")
+staminaBack.AnchorPoint = Vector2.new(0.5, 0)
+staminaBack.Position = UDim2.new(0, 110, 1, -26)
+staminaBack.Size = UDim2.fromOffset(160, 8)
+staminaBack.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+staminaBack.BorderSizePixel = 0
+staminaBack.Visible = false
+staminaBack.Parent = hud
+local staminaFill = Instance.new("Frame")
+staminaFill.Size = UDim2.fromScale(1, 1)
+staminaFill.BackgroundColor3 = Color3.fromRGB(80, 200, 255)
+staminaFill.BorderSizePixel = 0
+staminaFill.Parent = staminaBack
+
+local sprintKeyHeld = false
+local sprintSent = false
+
 local beep = Instance.new("Sound")
 beep.SoundId = "rbxasset://sounds/electronicpingshort.wav"
 beep.Volume = 1
@@ -150,6 +168,23 @@ RunService.RenderStepped:Connect(function()
 	end
 
 	-- Own status
+	-- Sprint: ask the server while the key is held and we're actually moving.
+	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	local wantSprint = sprintKeyHeld and isSurvivor and humanoid ~= nil and humanoid.MoveDirection.Magnitude > 0.1
+	if wantSprint ~= sprintSent then
+		sprintSent = wantSprint
+		Net.Remotes.Sprint:FireServer(wantSprint)
+	end
+	local stamina = player:GetAttribute("Stamina")
+	staminaBack.Visible = isSurvivor and condition == "Alive" and stamina ~= nil
+	if stamina then
+		local ratio = stamina / Config.Sprint.MaxStamina
+		staminaFill.Size = UDim2.fromScale(ratio, 1)
+		staminaFill.BackgroundColor3 = if ratio < Config.Sprint.MinToStart / Config.Sprint.MaxStamina
+			then Color3.fromRGB(255, 90, 70)
+			else Color3.fromRGB(80, 200, 255)
+	end
+
 	-- (MaxHP is only set once the survivor has spawned with a character.)
 	hpLabel.Text = if isSurvivor and condition ~= "Benched" and player:GetAttribute("MaxHP")
 		then `HP {math.ceil(player:GetAttribute("HP") or 0)}/{player:GetAttribute("MaxHP")}`
@@ -163,7 +198,7 @@ RunService.RenderStepped:Connect(function()
 		elseif (player:GetAttribute("InvincibleUntil") or 0) > workspace:GetServerTimeNow() then
 			status = "Invincible"
 		elseif bomb and bomb:GetAttribute("WorkerId") == player.UserId then
-			status = "Disarming... move to cancel"
+			status = "Disarming... keep holding E, stay still"
 		else
 			local downed = nearestDownedTeammate()
 			if downed then
@@ -184,9 +219,18 @@ end)
 
 -- Input -------------------------------------------------------------------
 
+UserInputService.InputEnded:Connect(function(input)
+	if input.KeyCode == Config.Sprint.Key then
+		sprintKeyHeld = false
+	end
+end)
+
 UserInputService.InputBegan:Connect(function(input, processed)
 	if processed then
 		return
+	end
+	if input.KeyCode == Config.Sprint.Key then
+		sprintKeyHeld = true
 	end
 	if input.KeyCode == Enum.KeyCode.R and player:GetAttribute("Condition") == "Alive" then
 		local downed = nearestDownedTeammate()

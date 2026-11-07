@@ -49,6 +49,17 @@ Config.Survivor = {
 	-- A survivor can only be downed once. The next time they hit 0 HP they are benched (spectating).
 }
 
+-- Hold the key to run (survivors only; Scarecrow closes distance with Panic Rush instead).
+Config.Sprint = {
+	Key = Enum.KeyCode.LeftShift,
+	Speed = 24,
+	MaxStamina = 100,
+	DrainPerSecond = 25, -- a full bar lasts 4 seconds
+	RegenPerSecond = 15,
+	RegenDelay = 1, -- seconds after running stops before stamina refills
+	MinToStart = 20, -- an empty bar must refill this far before running again
+}
+
 Config.Scarecrow = {
 	WalkSpeed = 18, -- OPEN (Q8)
 }

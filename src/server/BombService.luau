@@ -1,6 +1,6 @@
 --[[
 	The bomb objective: one bomb is revealed at a time, one survivor can work it,
-	and progress is kept when the disarm is interrupted (hit, moved, cancelled).
+	and progress is kept when the disarm is interrupted (hit, moved, or the key released).
 
 	Bomb spots are BaseParts in Workspace.Map.BombSpots, ordered by their "Order"
 	attribute (or name). Placeholder spots are generated if that folder is missing.
@@ -167,10 +167,6 @@ local function tryStart(player: Player)
 	if not bomb then
 		return
 	end
-	if worker == player then
-		stopWorking() -- pressing again cancels
-		return
-	end
 	if worker or not SurvivorService.IsAlive(player) then
 		return
 	end
@@ -219,12 +215,18 @@ function activate(index: number)
 
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "DisarmPrompt"
-	prompt.ActionText = "Disarm"
+	prompt.ActionText = "Hold to disarm"
 	prompt.ObjectText = "Fear Gas Bomb"
+	-- The key is held for the whole disarm: pressing starts it, releasing stops it (progress is kept).
 	prompt.HoldDuration = 0
 	prompt.MaxActivationDistance = Config.Bombs.InteractRange
 	prompt.RequiresLineOfSight = false
 	prompt.Triggered:Connect(tryStart)
+	prompt.TriggerEnded:Connect(function(player)
+		if worker == player then
+			stopWorking()
+		end
+	end)
 	prompt.Parent = bomb
 end
 

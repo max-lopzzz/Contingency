@@ -24,6 +24,7 @@ local REMOTE_NAMES = {
 	"DebugDamage", -- client -> server (Studio only)
 	"VoteKiller", -- client -> server: killer kit name (Intermission only)
 	"PickSurvivor", -- client -> server: survivor kit name (Select phase, survivors only)
+	"Sprint", -- client -> server: true while the sprint key is held and the player is moving
 }
 
 local Net = { Remotes = {} }
